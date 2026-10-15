@@ -5,5 +5,7 @@
 
 pub mod capture;
 pub mod classify;
+pub mod flow;
 pub mod parse;
+pub mod ports;
 pub mod trace;
