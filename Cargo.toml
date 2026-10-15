@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/helper", "src-tauri"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[workspace.lints.rust]
+# `deny`, not `forbid`, so three audited spots can opt out:
+# SetDllDirectoryW in src-tauri/src/live_source.rs, the Toolhelp process list
+# in src-tauri/src/port_watcher.rs and IcmpSendEcho in src-tauri/src/icmp.rs.
+# Nothing else may.
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# Profiles must live at the workspace root.
+# See https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

@@ -1,0 +1,32 @@
+# Dependencies and builds
+node_modules/
+dist/
+target/
+src-tauri/gen/schemas/
+
+# Packet captures and traces: never commit raw captures.
+*.pcap
+*.pcapng
+*.cap
+*.etl
+
+# Secrets
+.env
+.env.*
+*.pfx
+*.p12
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+
+# DB-IP Lite databases (downloaded by scripts/update-ip-data.mjs --geo)
+src-tauri/resources/ipdb/
+
+# Region-picker helper, built and copied in by CI before bundling
+src-tauri/binaries/
