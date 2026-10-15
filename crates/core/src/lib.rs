@@ -9,6 +9,7 @@ pub mod cascade;
 pub mod classify;
 pub mod flow;
 pub mod gameping;
+pub mod history;
 pub mod measure;
 pub mod parse;
 pub mod ports;
