@@ -35,5 +35,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      # Dev builds add experiment code behind the `dev-tools` feature.
+      - name: Clippy (dev-tools)
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
       - name: Test
         run: cargo test --workspace --locked
+
+      - name: Test (dev-tools)
+        run: cargo test --workspace --all-features --locked
