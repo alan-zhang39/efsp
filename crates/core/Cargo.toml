@@ -1,0 +1,24 @@
+[package]
+name = "efsp-core"
+description = "Pure logic for efsp, testable on any OS."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "efsp_core"
+
+[features]
+# Experiment and cross-check code (game-ping pairing, ping.exe parsing).
+# Enabled by the app's `dev-tools` feature; absent from release builds.
+dev-tools = []
+
+[dependencies]
+etherparse = "0.21.0"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+serde_json = "1"
+
+[lints]
+workspace = true
