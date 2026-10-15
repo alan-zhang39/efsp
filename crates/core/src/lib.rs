@@ -3,9 +3,12 @@
 //! traits (such as [`capture::PacketSource`]) or in the Tauri app crate, so
 //! everything here can be unit-tested on any OS.
 
+pub mod bars;
 pub mod capture;
+pub mod cascade;
 pub mod classify;
 pub mod flow;
+pub mod measure;
 pub mod parse;
 pub mod ports;
 pub mod trace;
