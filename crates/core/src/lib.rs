@@ -4,5 +4,6 @@
 //! everything here can be unit-tested on any OS.
 
 pub mod capture;
+pub mod classify;
 pub mod parse;
 pub mod trace;
