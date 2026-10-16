@@ -1,0 +1,22 @@
+[package]
+name = "efsp-helper"
+description = "efsp's elevated helper: applies or removes efsp's region-picker firewall rules, nothing else."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "efsp-helper"
+path = "src/main.rs"
+
+[dependencies]
+efsp-core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56.0"

@@ -7,11 +7,16 @@ pub mod bars;
 pub mod capture;
 pub mod cascade;
 pub mod classify;
+pub mod firewall;
 pub mod flow;
 pub mod gameping;
 pub mod history;
 pub mod measure;
+pub mod npcap;
 pub mod parse;
+pub mod picker;
+#[cfg(feature = "dev-tools")]
+pub mod pingexe;
 pub mod ports;
 pub mod session;
 pub mod trace;

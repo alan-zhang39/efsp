@@ -44,3 +44,22 @@ jobs:
 
       - name: Test (dev-tools)
         run: cargo test --workspace --all-features --locked
+
+  # Windows-only code (the helper's registry and netsh calls) only compiles here.
+  rust-windows:
+    name: Rust (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --all-features --locked
