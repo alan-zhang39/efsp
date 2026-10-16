@@ -1,0 +1,89 @@
+/*
+ * efsp's design tokens and the few global rules Tailwind classes can't
+ * express. Everything else is styled where it's used (Tailwind), through
+ * the shadcn names in index.css, which point at these tokens.
+ */
+
+/* Dark is the default; light when the theme setting says so. */
+:root {
+  --bg: #14181d;
+  /* The window frame around the panels (a touch darker, Spotify-style). */
+  --chrome: #0c0f12;
+  --surface: #1c2229;
+  --surface-press: #232a33;
+  --line: #2c343e;
+  --text: #e4e8ec;
+  --text-muted: #8d97a3;
+  --ready: #6dbe93;
+  --action: #e0ae4f;
+  --poor: #e2857a;
+  --neutral: #8fa6bd;
+  --primary-bg: #e4e8ec;
+  --primary-text: #14181d;
+  --focus: #8fb8e0;
+
+  color-scheme: dark;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f6f8;
+  --chrome: #e2e6ea;
+  --surface: #e8ecf0;
+  --surface-press: #dde2e8;
+  --line: #cfd6dd;
+  --text: #1a1f25;
+  --text-muted: #5b6672;
+  --ready: #2a7a52;
+  --action: #94650c;
+  --poor: #a8443a;
+  --neutral: #45627f;
+  --primary-bg: #1a1f25;
+  --primary-text: #f4f6f8;
+  --focus: #2f6aa3;
+  color-scheme: light;
+}
+
+/* More contrast when Windows asks for it. */
+@media (prefers-contrast: more) {
+  :root:not([data-theme="light"]) {
+    --text-muted: #c3cad2;
+    --line: #8d97a3;
+  }
+  :root[data-theme="light"] {
+    --text-muted: #39424c;
+    --line: #5b6672;
+  }
+}
+
+/* The window: only the content panel scrolls. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--chrome);
+}
+
+/* uPlot draws the graph; these style the parts it creates itself. */
+.ping-graph .u-axis {
+  font-size: 0.75rem;
+}
+
+/* The drag-to-zoom selection: visible on dark and light backgrounds. */
+.ping-graph .u-select {
+  background: color-mix(in srgb, var(--focus) 22%, transparent);
+  border-left: 1px solid var(--focus);
+  border-right: 1px solid var(--focus);
+}
+
+/* The hover point marker matches the ping line. */
+.ping-graph .u-cursor-pt {
+  border-color: var(--text) !important;
+  background: var(--bg) !important;
+}
