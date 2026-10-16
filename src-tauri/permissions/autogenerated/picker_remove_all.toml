@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-picker-remove-all"
+description = "Enables the picker_remove_all command without any pre-configured scope."
+commands.allow = ["picker_remove_all"]
+
+[[permission]]
+identifier = "deny-picker-remove-all"
+description = "Denies the picker_remove_all command without any pre-configured scope."
+commands.deny = ["picker_remove_all"]

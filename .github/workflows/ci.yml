@@ -97,8 +97,27 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # Link-time only: wpcap.lib from the official Npcap SDK. The installer
+      # does not bundle Npcap; users install it themselves.
+      - name: Download Npcap SDK
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\npcap-sdk.zip"
+          Invoke-WebRequest https://npcap.com/dist/npcap-sdk-1.16.zip -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          if ($hash -ne "F0A8BE7778EE3AE1B99BBBECB27A3FF0F6C111A4093F1C78C5C5A099607184DB") {
+            throw "Npcap SDK checksum mismatch: $hash"
+          }
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\npcap-sdk"
+          "LIBPCAP_LIBDIR=$env:RUNNER_TEMP\npcap-sdk\Lib\x64" >> $env:GITHUB_ENV
+          # Skip loading wpcap.dll at build time to detect the version.
+          "LIBPCAP_VER=1.10.0" >> $env:GITHUB_ENV
+
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Clippy (release features)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Test
         run: cargo test --workspace --all-features --locked

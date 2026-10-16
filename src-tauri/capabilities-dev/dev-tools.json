@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "dev-tools",
+  "description": "Developer tools (dev-tools builds only): trace recorder and measurement cross-checks.",
+  "windows": ["main"],
+  "permissions": [
+    "allow-dev-seed-history",
+    "allow-set-recording",
+    "allow-open-traces-folder",
+    "allow-compare-with-ping",
+    "allow-compare-game-pings",
+    "allow-test-route-probe"
+  ]
+}

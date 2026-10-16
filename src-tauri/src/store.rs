@@ -168,13 +168,6 @@ impl Store {
     }
 
     /// Saves a finished match; returns its id.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "used by the monitor, which arrives with the capture pipeline"
-        )
-    )]
     pub fn insert(&self, r: &NewRecord) -> rusqlite::Result<i64> {
         let cols = r
             .endpoint
@@ -274,13 +267,6 @@ impl Store {
 
     /// Every saved record on a cloud server, for the region catalogue:
     /// (endpoint, kind, started_at, median_ms).
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "used by the monitor, which arrives with the capture pipeline"
-        )
-    )]
     pub fn server_rows(&self) -> rusqlite::Result<Vec<ServerRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT region, kind, started_at, median_ms FROM matches
@@ -383,10 +369,6 @@ impl History {
     }
 
     #[cfg(test)]
-    #[expect(
-        dead_code,
-        reason = "used by the monitor, which arrives with the capture pipeline"
-    )]
     pub fn in_memory() -> Self {
         Self {
             store: std::sync::Mutex::new(Store::open_in_memory().unwrap()),

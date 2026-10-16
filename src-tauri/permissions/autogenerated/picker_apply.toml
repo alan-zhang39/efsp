@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-picker-apply"
+description = "Enables the picker_apply command without any pre-configured scope."
+commands.allow = ["picker_apply"]
+
+[[permission]]
+identifier = "deny-picker-apply"
+description = "Denies the picker_apply command without any pre-configured scope."
+commands.deny = ["picker_apply"]

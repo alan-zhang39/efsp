@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-picker-choose-exe"
+description = "Enables the picker_choose_exe command without any pre-configured scope."
+commands.allow = ["picker_choose_exe"]
+
+[[permission]]
+identifier = "deny-picker-choose-exe"
+description = "Denies the picker_choose_exe command without any pre-configured scope."
+commands.deny = ["picker_choose_exe"]

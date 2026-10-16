@@ -1,5 +1,11 @@
 mod geo;
+mod icmp;
+mod live_source;
+mod monitor;
 mod npcap_probe;
+mod picker;
+mod port_watcher;
+mod sample;
 mod settings;
 mod store;
 
@@ -9,9 +15,11 @@ use std::sync::{Arc, Mutex};
 use efsp_core::history::{MatchRecord, to_csv};
 use efsp_core::npcap::{NPCAP_DOWNLOAD_URL, NpcapStatus};
 use efsp_core::session::Point;
+use monitor::{MonitorState, Snapshot};
 use serde::{Deserialize, Serialize};
 use settings::Settings;
 use store::{History, ListQuery};
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -28,10 +36,6 @@ struct AppState {
     settings: Mutex<Settings>,
     config_dir: PathBuf,
     /// Offline country/network lookups for classifying remotes.
-    #[expect(
-        dead_code,
-        reason = "used by the monitor, which arrives with the capture pipeline"
-    )]
     geo: geo::Geo,
 }
 
@@ -56,6 +60,290 @@ fn open_npcap_download(app: AppHandle) -> Result<(), String> {
     app.opener()
         .open_url(NPCAP_DOWNLOAD_URL, None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+/// Starts live capture (Windows) or replay (`EFSP_REPLAY`), streaming
+/// snapshots to `on_update`. Safe to call again after a page reload.
+#[tauri::command]
+fn start_monitor(
+    app: AppHandle,
+    state: State<'_, MonitorState>,
+    app_state: State<'_, AppState>,
+    on_update: Channel<Snapshot>,
+) -> Result<(), String> {
+    state.start(
+        on_update,
+        traces_dir(&app)?,
+        app_state.history.clone(),
+        Arc::clone(&app_state.geo),
+    );
+    Ok(())
+}
+
+/// What the Servers page needs to show the region picker.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PickerStatus {
+    /// Cities switched off by efsp's rules (empty if none or unknown).
+    off: Vec<efsp_core::picker::Area>,
+    /// efsp's rules are in Windows Firewall right now.
+    rules_on: bool,
+    /// The eFootball.exe rules will be scoped to, if found.
+    game_exe: Option<String>,
+    /// This build can change the firewall (Windows, helper installed).
+    available: bool,
+    /// A match is being measured: Apply must wait.
+    match_active: bool,
+}
+
+fn picker_status_now(state: &AppState, monitor: &MonitorState) -> PickerStatus {
+    let mut saved = picker::load(&state.config_dir);
+    let before = saved.clone();
+    let present = picker::rules_present();
+    // The rules were removed outside efsp: forget them.
+    if present == Some(false) {
+        saved.off.clear();
+    }
+    // The game moved or was uninstalled: look again.
+    if saved
+        .game_exe
+        .as_deref()
+        .is_some_and(|exe| !picker::is_game_exe(std::path::Path::new(exe)))
+    {
+        saved.game_exe = None;
+    }
+    if saved.game_exe.is_none()
+        && let Some(found) = picker::find_game_exe()
+    {
+        saved.game_exe = Some(found.to_string_lossy().into_owned());
+    }
+    if saved != before {
+        let _ = picker::save(&state.config_dir, &saved);
+    }
+    PickerStatus {
+        rules_on: present.unwrap_or(!saved.off.is_empty()),
+        off: saved.off,
+        game_exe: saved.game_exe,
+        available: cfg!(windows) && picker::helper_path().is_some(),
+        match_active: monitor.facts().match_active,
+    }
+}
+
+/// One firewall change at a time (two UAC prompts would race on the
+/// request file).
+static PICKER_BUSY: Mutex<()> = Mutex::new(());
+
+/// The guard rails for switching cities off, checked before the
+/// confirmation and again right before the UAC prompt.
+fn check_apply(facts: &monitor::LiveFacts, off: &[efsp_core::picker::Area]) -> Result<(), String> {
+    if !facts.live {
+        return Err(
+            "Switching servers off needs live capture, so efsp can see when a match starts.".into(),
+        );
+    }
+    // Never change rules under a live match: it could drop its packets.
+    if facts.match_active {
+        return Err("Finish the current match first: rules can't change during a match.".into());
+    }
+    if !facts.pinged_areas.is_empty()
+        && facts
+            .pinged_areas
+            .iter()
+            .all(|a| off.iter().any(|o| &o.key == a))
+    {
+        return Err("Leave at least one server the game is checking switched on.".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn picker_status(app: AppHandle) -> Result<PickerStatus, String> {
+    // Runs netsh and scans Steam folders: keep it off the UI thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        picker_status_now(&app.state::<AppState>(), &app.state::<MonitorState>())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Switches these cities off (and every other city on) with one UAC prompt.
+/// `Ok(None)` if the player cancelled.
+#[tauri::command]
+async fn picker_apply(
+    app: AppHandle,
+    off: Vec<efsp_core::picker::Area>,
+) -> Result<Option<PickerStatus>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok(_busy) = PICKER_BUSY.try_lock() else {
+            return Err("efsp is already changing the rules.".into());
+        };
+        let state = app.state::<AppState>();
+        let monitor = app.state::<MonitorState>();
+        if off.is_empty() {
+            return remove_rules(&app);
+        }
+        check_apply(&monitor.facts(), &off)?;
+        let mut saved = picker::load(&state.config_dir);
+        let program = saved
+            .game_exe
+            .clone()
+            .ok_or("Choose eFootball.exe first, so the rules only affect the game.")?;
+        // Built here only to check it; the helper builds its own from the cities.
+        efsp_core::picker::build_rules(&off, &program).map_err(|e| e.to_string())?;
+
+        // One native confirmation with everything the player should know.
+        let names: Vec<&str> = off.iter().map(|a| a.name.as_str()).collect();
+        let usual = history_of(&state)
+            .ok()
+            .and_then(|h| h.with(|s| s.server_rows()).ok())
+            .map(|rows| efsp_core::history::region_stats(&rows))
+            .and_then(|stats| stats.into_iter().find(|r| r.matches > 0))
+            .map(|r| r.endpoint);
+        let usual_off = usual.as_ref().is_some_and(|u| {
+            let key = u.area_key();
+            off.iter().any(|a| a.key == key)
+        });
+        let mut text = format!(
+            "Switch off {}?\n\nefsp will add Windows Firewall rules so eFootball can't reach \
+             game servers there. Login and the store aren't affected. Peer-to-peer matches \
+             start through one of the game's servers, so they may be affected too.\n\n\
+             Experimental and not endorsed by Konami: matchmaking may take longer or fail. \
+             Turn servers back on any time from the sidebar or the Servers page.",
+            names.join(", ")
+        );
+        if usual_off && let Some(u) = &usual {
+            text.push_str(&format!("\n\n{} is where you usually play.", u.label()));
+        }
+        text.push_str(
+            "\n\nWindows will then ask for permission (check the taskbar if you don't see it).",
+        );
+        let mut dialog = app.dialog().message(text).title("Switch off servers");
+        if let Some(window) = app.get_webview_window("main") {
+            dialog = dialog.parent(&window);
+        }
+        let confirmed = dialog
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                "Switch off".into(),
+                "Cancel".into(),
+            ))
+            .blocking_show();
+        if !confirmed {
+            return Ok(None);
+        }
+        // A match may have started while the dialog was open.
+        check_apply(&monitor.facts(), &off)?;
+
+        let request = efsp_core::picker::HelperRequest::Apply {
+            program,
+            areas: off.clone(),
+        };
+        match picker::run_helper(&state.config_dir, &request)? {
+            picker::HelperOutcome::Cancelled => Ok(None),
+            picker::HelperOutcome::Done(_) => {
+                saved.off = off;
+                picker::save(&state.config_dir, &saved)?;
+                Ok(Some(picker_status_now(&state, &monitor)))
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Removes every efsp rule (one UAC prompt). Always allowed, even mid-match.
+fn remove_rules(app: &AppHandle) -> Result<Option<PickerStatus>, String> {
+    let state = app.state::<AppState>();
+    let monitor = app.state::<MonitorState>();
+    match picker::run_helper(
+        &state.config_dir,
+        &efsp_core::picker::HelperRequest::RemoveAll,
+    )? {
+        picker::HelperOutcome::Cancelled => Ok(None),
+        picker::HelperOutcome::Done(_) => {
+            let mut saved = picker::load(&state.config_dir);
+            saved.off.clear();
+            picker::save(&state.config_dir, &saved)?;
+            Ok(Some(picker_status_now(&state, &monitor)))
+        }
+    }
+}
+
+#[tauri::command]
+async fn picker_remove_all(app: AppHandle) -> Result<Option<PickerStatus>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok(_busy) = PICKER_BUSY.try_lock() else {
+            return Err("efsp is already changing the rules.".into());
+        };
+        remove_rules(&app)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Lets the player point efsp at eFootball.exe when Steam's records don't.
+#[tauri::command]
+async fn picker_choose_exe(app: AppHandle) -> Result<Option<PickerStatus>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let monitor = app.state::<MonitorState>();
+        let Some(chosen) = app
+            .dialog()
+            .file()
+            .add_filter("eFootball", &["exe"])
+            .set_title("Find eFootball.exe")
+            .blocking_pick_file()
+        else {
+            return Ok(None);
+        };
+        let path = chosen.into_path().map_err(|e| e.to_string())?;
+        if !picker::is_game_exe(&path) {
+            return Err("That isn't eFootball.exe.".into());
+        }
+        let mut saved = picker::load(&state.config_dir);
+        saved.game_exe = Some(path.to_string_lossy().into_owned());
+        picker::save(&state.config_dir, &saved)?;
+        Ok(Some(picker_status_now(&state, &monitor)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod picker_guard_tests {
+    use super::*;
+    use efsp_core::picker::Area;
+    use monitor::LiveFacts;
+
+    fn area(key: &str) -> Area {
+        Area {
+            key: key.into(),
+            name: key.into(),
+        }
+    }
+
+    fn facts(live: bool, match_active: bool, pinged: &[&str]) -> LiveFacts {
+        LiveFacts {
+            live,
+            match_active,
+            pinged_areas: pinged.iter().map(|s| (*s).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn apply_needs_live_capture_and_no_match() {
+        let off = [area("a")];
+        assert!(check_apply(&facts(false, false, &[]), &off).is_err());
+        assert!(check_apply(&facts(true, true, &[]), &off).is_err());
+        assert!(check_apply(&facts(true, false, &[]), &off).is_ok());
+    }
+
+    #[test]
+    fn apply_keeps_a_pinged_city_on() {
+        let f = facts(true, false, &["a", "b"]);
+        assert!(check_apply(&f, &[area("a"), area("b")]).is_err());
+        assert!(check_apply(&f, &[area("a")]).is_ok());
+    }
 }
 
 #[derive(Deserialize)]
@@ -321,6 +609,93 @@ fn unix_now_s() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 
+/// Developer-tool commands. Compiled, registered and permitted only in
+/// `dev-tools` builds (see build.rs and capabilities-dev/); a release build
+/// has none of them.
+#[cfg(feature = "dev-tools")]
+mod dev_commands {
+    use super::*;
+
+    /// Fills history with 150 sample matches (dev builds only), so the
+    /// History and Servers pages can be tried without playing. Returns how
+    /// many were added.
+    #[tauri::command]
+    pub fn dev_seed_history(state: State<'_, AppState>) -> Result<usize, String> {
+        let records = crate::sample::records(unix_now_s(), 150);
+        history_of(&state)?.with(|s| {
+            for r in &records {
+                s.insert(r).map_err(|e| e.to_string())?;
+            }
+            Ok(records.len())
+        })
+    }
+
+    /// Turns the header-only, anonymised trace recorder on or off.
+    #[tauri::command]
+    pub fn set_recording(state: State<'_, MonitorState>, on: bool) -> Result<(), String> {
+        state.set_recording(on)
+    }
+
+    /// Opens the folder where recorded traces are saved.
+    #[tauri::command]
+    pub fn open_traces_folder(app: AppHandle) -> Result<(), String> {
+        let dir = traces_dir(&app)?;
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        app.opener()
+            .open_path(dir.to_string_lossy(), None::<&str>)
+            .map_err(|e| e.to_string())
+    }
+
+    /// Pings the current match target with Windows' own ping.exe for ~10 s
+    /// and compares its median with ours. Returns numbers only.
+    #[tauri::command]
+    pub async fn compare_with_ping(
+        state: State<'_, MonitorState>,
+    ) -> Result<efsp_core::pingexe::Comparison, String> {
+        let rx = state.compare_ping()?;
+        tauri::async_runtime::spawn_blocking(move || {
+            rx.recv_timeout(std::time::Duration::from_secs(30))
+                .map_err(|_| "The ping check timed out.".to_owned())?
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+
+    /// Sends one TTL-1 probe and reports whether "TTL expired" came back.
+    #[tauri::command]
+    pub async fn test_route_probe(state: State<'_, MonitorState>) -> Result<String, String> {
+        let rx = state.test_route_probe()?;
+        tauri::async_runtime::spawn_blocking(move || {
+            rx.recv_timeout(std::time::Duration::from_secs(10))
+                .map_err(|_| "The test timed out.".to_owned())?
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+
+    /// Experiment: ICMP the nearest servers the game itself pings and
+    /// compare. Returns numbered rows, no addresses.
+    #[tauri::command]
+    pub async fn compare_game_pings(
+        state: State<'_, MonitorState>,
+    ) -> Result<Vec<efsp_core::gameping::ServerComparison>, String> {
+        let rx = state.compare_game_pings()?;
+        tauri::async_runtime::spawn_blocking(move || {
+            rx.recv_timeout(std::time::Duration::from_secs(60))
+                .map_err(|_| "The comparison timed out.".to_owned())?
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+}
+
+fn traces_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|d| d.join("traces"))
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -336,6 +711,7 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![AUTOSTART_ARG]),
         ))
+        .manage(MonitorState::default())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_data_dir()?;
@@ -437,15 +813,46 @@ mod tray {
     }
 }
 
+#[cfg(not(feature = "dev-tools"))]
 fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         npcap_status,
         open_npcap_download,
+        start_monitor,
         history_list,
         history_detail,
         history_export_csv,
         history_delete_all,
+        picker_status,
+        picker_apply,
+        picker_remove_all,
+        picker_choose_exe,
         settings_get,
         settings_set
+    ]
+}
+
+#[cfg(feature = "dev-tools")]
+fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
+    tauri::generate_handler![
+        npcap_status,
+        open_npcap_download,
+        start_monitor,
+        history_list,
+        history_detail,
+        history_export_csv,
+        history_delete_all,
+        picker_status,
+        picker_apply,
+        picker_remove_all,
+        picker_choose_exe,
+        settings_get,
+        settings_set,
+        dev_commands::dev_seed_history,
+        dev_commands::set_recording,
+        dev_commands::open_traces_folder,
+        dev_commands::compare_with_ping,
+        dev_commands::compare_game_pings,
+        dev_commands::test_route_probe
     ]
 }
