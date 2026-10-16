@@ -139,7 +139,7 @@ jobs:
         run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
       - name: Cache IP location databases
         id: ipdb-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: src-tauri/resources/ipdb
           key: dbip-lite-${{ steps.ipdb-month.outputs.month }}
