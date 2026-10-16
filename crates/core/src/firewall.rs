@@ -138,13 +138,15 @@ pub struct Rule {
 pub enum FirewallError {
     #[error("rule name must look like \"{RULE_PREFIX} <label>\" with a safe label: {0:?}")]
     InvalidRuleName(String),
-    #[error("CIDR prefix /{prefix_len} for {addr} is invalid or too wide")]
+    // The address stays out of the message: errors can reach the UI, and
+    // efsp never shows an IP address.
+    #[error("a CIDR range with prefix /{prefix_len} is invalid or too wide")]
     InvalidCidr { addr: IpAddr, prefix_len: u8 },
     #[error("rule {0} has no program path")]
     MissingProgram(RuleName),
     #[error("rule {0} has no remote ranges")]
     EmptyRule(RuleName),
-    #[error("not a CIDR range: {0:?}")]
+    #[error("a range isn't in CIDR form")]
     InvalidText(String),
     #[error("rule {0} must be scoped to the full path of {GAME_EXE}")]
     BadProgram(RuleName),
