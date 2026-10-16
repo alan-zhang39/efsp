@@ -11,10 +11,12 @@ on:
 permissions:
   contents: read
 
+# GitHub keeps one queued run per group and drops the rest, whatever
+# cancel-in-progress says. Pull requests share a group per branch, so a new
+# push replaces the old run; every push to main or a tag gets a group of its
+# own, so each commit there finishes with a result (and an installer).
 concurrency:
-  group: ci-${{ github.ref }}
-  # A new push to a pull request replaces its old run. Every push to main
-  # finishes, so each commit there gets a result (and an installer).
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -25,9 +27,11 @@ jobs:
     name: UI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: lts/*
           cache: npm
@@ -51,19 +55,21 @@ jobs:
     name: Rust (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Format
         run: cargo fmt --all --check
 
-      # The app crate (efsp) needs Windows' WebView2 to build; it's checked
-      # in the Windows job. Everything else builds and tests here.
+      # On Linux the app crate (efsp) needs Tauri's webkit2gtk libraries; it's
+      # built and checked in the Windows job instead.
       - name: Clippy
         run: cargo clippy --workspace --exclude efsp --all-targets --locked -- -D warnings
 
@@ -81,13 +87,12 @@ jobs:
   rust-windows:
     name: Rust and installer (Windows)
     runs-on: windows-latest
-    permissions:
-      # Only used by the release step, which runs on version tags.
-      contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: lts/*
           cache: npm
@@ -98,11 +103,11 @@ jobs:
           npm ci
           npm run build
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       # Link-time only: wpcap.lib from the official Npcap SDK. The installer
       # does not bundle Npcap; users install it themselves.
@@ -139,7 +144,7 @@ jobs:
         run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
       - name: Cache IP location databases
         id: ipdb-cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: src-tauri/resources/ipdb
           key: dbip-lite-${{ steps.ipdb-month.outputs.month }}
@@ -163,37 +168,64 @@ jobs:
       # bundle (kept out of the base config so checks build without them).
       # Release features only: developer tools are for local builds.
       - name: Build installer (unsigned)
-        run: npm run tauri build -- --config "${{ github.workspace }}/src-tauri/tauri.bundle.conf.json"
+        run: npm run tauri build -- --config "${{ github.workspace }}/src-tauri/tauri.bundle.conf.json" -- --locked
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: efsp-windows-installer
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 14
 
-      # Tags only: a draft release with the installer, to check and publish
-      # by hand.
+  # Tags only: a draft release with the installer, to check and publish by
+  # hand. The only job that can write to the repository, and it runs no
+  # third-party build code: it just uploads what the Windows job built.
+  release:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ui, rust, rust-windows, audit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: efsp-windows-installer
+          path: installer
+
+      # Release notes: this version's section of CHANGELOG.md.
       - name: Draft GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" target/release/bundle/nsis/*.exe \
-            --draft --title "efsp $GITHUB_REF_NAME" --notes-file CHANGELOG.md
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on && /^\[[^]]*\]: / { next }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" installer/*.exe \
+            --repo "$GITHUB_REPOSITORY" --draft \
+            --title "efsp $GITHUB_REF_NAME" --notes-file notes.md
 
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: lts/*
       - name: npm audit
         run: npm audit --audit-level=high
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
         with:
           tool: cargo-audit
       - name: cargo audit
