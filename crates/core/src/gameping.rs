@@ -91,7 +91,7 @@ impl GamePings {
         if h.protocol != Protocol::Udp {
             return;
         }
-        self.prune(h.timestamp_us);
+        self.tick(h.timestamp_us);
         let key = (h.local_port, h.remote);
         match h.direction {
             Direction::Outbound => {
@@ -131,9 +131,11 @@ impl GamePings {
         }
     }
 
-    /// Forgets pairs that have been silent for [`FORGET_AFTER_US`]. Runs at
-    /// most once a second.
-    fn prune(&mut self, now_us: u64) {
+    /// Forgets pairs that have been silent for [`FORGET_AFTER_US`], address
+    /// and all. Runs at most once a second. Called for every packet and also
+    /// on every snapshot, so addresses are dropped even when packets stop
+    /// coming (the game was closed straight after a match).
+    pub fn tick(&mut self, now_us: u64) {
         if now_us.saturating_sub(self.last_prune_us) < 1_000_000 {
             return;
         }
@@ -289,6 +291,18 @@ mod tests {
             wire_len: 44,
             ttl: None,
         }
+    }
+
+    #[test]
+    fn tick_forgets_silent_servers_without_new_packets() {
+        let mut g = GamePings::new();
+        g.observe(&pkt(0, Direction::Outbound, "203.0.113.4:5521"));
+        g.observe(&pkt(40_000, Direction::Inbound, "203.0.113.4:5521"));
+        assert_eq!(g.remembered(), 1);
+        // No more packets arrive (the game was closed); snapshots keep ticking.
+        g.tick(FORGET_AFTER_US + 40_000);
+        assert_eq!(g.remembered(), 0);
+        assert_eq!(g.view().servers, 0);
     }
 
     #[test]

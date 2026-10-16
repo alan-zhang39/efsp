@@ -515,6 +515,7 @@ impl Pipeline {
             self.save_pending();
         }
         self.tracker.tick(now_us);
+        self.game_pings.tick(now_us);
         let status = self
             .session
             .as_ref()
