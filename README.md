@@ -15,7 +15,8 @@ This is unreliable; for example, it's possible to have a 5 bar connection that f
 Instead, efsp finds the match connection and measures it:
 
 - **Ping** to the match
-- **Where it is**: the location of the server the peer (in the case of a p2p connection)
+- **Where it is**: the server's city (e.g. "Frankfurt"), or the other player's
+  country for a peer-to-peer match (e.g. "Canada (peer)")
 
 <img width="2176" height="1456" alt="before-accept" src="https://github.com/user-attachments/assets/848fa65b-e06c-489c-a38d-553e74090651" />
 
@@ -23,16 +24,26 @@ Instead, efsp finds the match connection and measures it:
 ### During the match
 
 The card stays up for the whole match with a live graph of ping, jitter and
-packet loss, so you can tell lag on your side from a bad connection. After the
-match it stays on screen as your last match.
+packet loss, so you can tell lag on your side from a bad connection. When the
+match ends, efsp goes back to waiting, and the match and its full graph are
+saved in History.
 
 <img width="2176" height="1456" alt="during-match" src="https://github.com/user-attachments/assets/a56161c1-c0f3-4a26-92d8-28be721e1d73" />
 
 
 ### Pick your servers
 
-efsp allows you to select which servers to queue on.
-Note that p2p matches (e.g. friend match) start through a game server, so switching off nearby cities may affect them too.
+The Servers page shows your ping to every city the game checks in the
+background, measured without sending anything. Switch off the cities you don't
+want to play on, and efsp blocks them with Windows Firewall rules (outbound UDP,
+`eFootball.exe` only), after a Windows permission prompt.
+
+- The rules stay on when efsp is closed or uninstalled. To undo, switch every
+  city back on (the switch at the top of the list) and Apply, while eFootball
+  is running and you're not in a match. Or delete the rules named
+  `efsp: region picker` in Windows Defender Firewall.
+- p2p matches (e.g. friend matches) start through a game server, so switching
+  off nearby cities may affect them too.
 
 <img width="2176" height="1456" alt="servers" src="https://github.com/user-attachments/assets/fb802931-cdb0-4f6b-bbf1-58d01effb79c" />
 
@@ -62,15 +73,16 @@ Windows 10 and 11 only.
 - **It never touches the game.** No memory reading, no injection, no changes to
   game files. It finds the game's connections from Windows' own connection
   list, the same one `netstat` shows.
-- **It sends very little.** To measure ping, efsp pings the match server, at
-  most 5 small pings a second, the same as Windows' `ping` command.
-- **Your data stays on your PC.** No accounts, no telemetry, no internet
-  connections. Opponents' IP addresses are never shown, saved or exported, only
-  their country.
+- **It sends very little.** To measure ping, efsp pings the match server with
+  standard ICMP echo requests (what Windows' `ping` sends), at most 5 a second.
+- **Your data stays on your PC.** No accounts, no telemetry, no online lookups:
+  apart from those pings, efsp sends nothing. Opponents' IP addresses are never
+  shown, saved or exported, only their country.
 - **Open source.** You can read every line, and installers are built by this
   repository's public CI.
 
 Note: efsp is not affiliated with or endorsed by Konami. Use at your own discretion.
+
 ## How it works
 
 1. **Find the game's traffic.** efsp asks Windows which ports `eFootball.exe`

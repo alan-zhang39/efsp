@@ -27,8 +27,10 @@ Anything that breaks one of these promises is a security issue:
 - **Game traffic.** efsp only reads packet headers and timing. A way to make it
   read packet contents, or delay, drop or change game traffic, is a
   vulnerability.
-- **Network calls.** efsp makes no internet connections. A way to make it
-  contact a remote server is a vulnerability.
+- **Network traffic.** efsp makes no requests of its own: no updates,
+  telemetry or online lookups. The only packets it sends are pings to the
+  current match server (or the last router before it), at most 5 a second. A
+  way to make it contact anything else, or send more, is a vulnerability.
 - **The app itself**: anything that lets web content or another program run
   code through efsp or call its commands.
 

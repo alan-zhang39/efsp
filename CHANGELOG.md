@@ -11,15 +11,16 @@ First release.
 ### Added
 
 - **Match card before you accept.** About 1–2 seconds after a match is found,
-  efsp shows the real ping and where the other end is. It stays on screen after the
-  match as the last match.
+  efsp shows the real ping, its own 1–5 bars and where the other end is. When
+  the match ends it's saved to History.
 - **Live graph during the match**: ping, jitter range and loss over the
   last minute, with the full graph kept for the match afterwards.
 - **Servers page and region picker.** Your ping to
   every city the game checks in the background, measured passively without
   sending anything. Switch cities off to keep matchmaking away from them: efsp
   adds Windows Firewall rules (outbound UDP, `eFootball.exe` only) after a
-  Windows permission prompt.
+  Windows permission prompt. Switch every city back on and Apply to remove
+  them.
 - **Match history**: rows or cards, search by server, filter by time range and
   server or peer, declined offers marked "Offer", a detail view with the full
   graph, and CSV export.
@@ -34,9 +35,12 @@ First release.
   first start.
 - The installer isn't signed yet, so Windows SmartScreen may say "Windows
   protected your PC": choose **More info → Run anyway**.
-- efsp only measures. It never touches the game or changes game traffic, makes
-  no internet connections, and never shows or saves an opponent's address.
+- efsp only measures. It never touches the game or changes game traffic, and
+  never shows or saves an opponent's address. It makes no requests of its own:
+  the only packets it sends are pings to the match server, at most 5 a second.
 - The region picker isn't endorsed by Konami and may make matchmaking slower.
+  Its rules stay on when efsp is closed or uninstalled, until you turn the
+  cities back on.
   Peer-to-peer matches start through a game server, so switching off nearby
   cities may affect them too.
 - IP geolocation by DB-IP (db-ip.com), CC BY 4.0.
