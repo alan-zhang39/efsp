@@ -39,9 +39,9 @@ want to play on, and efsp blocks them with Windows Firewall rules (outbound UDP,
 `eFootball.exe` only), after a Windows permission prompt.
 
 - The rules stay on when efsp is closed or uninstalled. To undo, switch every
-  city back on (the switch at the top of the list) and Apply, while eFootball
-  is running and you're not in a match. Or delete the rules named
-  `efsp: region picker` in Windows Defender Firewall.
+  city back on (the "All servers" switch) and Apply; that works any time, even
+  mid-match. Or delete the rules named `efsp: region picker` in Windows
+  Defender Firewall.
 - p2p matches (e.g. friend matches) start through a game server, so switching
   off nearby cities may affect them too.
 
@@ -69,7 +69,8 @@ Windows 10 and 11 only.
 ## Is it safe?
 
 - **It only measures.** It reads the timing and headers of the game's network
-  packets, never their contents, and never delays, drops or changes them.
+  packets, never their contents, and never delays, drops or changes them,
+  apart from the region picker's firewall rules for the cities you switch off.
 - **It never touches the game.** No memory reading, no injection, no changes to
   game files. It finds the game's connections from Windows' own connection
   list, the same one `netstat` shows.
@@ -86,7 +87,8 @@ Note: efsp is not affiliated with or endorsed by Konami. Use at your own discret
 ## How it works
 
 1. **Find the game's traffic.** efsp asks Windows which ports `eFootball.exe`
-   has open and captures only those packets through Npcap, headers only.
+   has open and captures only those packets through Npcap, keeping at most the
+   first 160 bytes of each and reading only the header fields.
 2. **Find the match.** Packets are grouped into conversations. The match is the
    one carrying steady two-way traffic (about 100 packets a second), unlike
    the lobby's occasional requests.

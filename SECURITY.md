@@ -25,8 +25,8 @@ Anything that breaks one of these promises is a security issue:
   address. A way to recover one from the app, its history database, logs or
   exports is a vulnerability.
 - **Game traffic.** efsp only reads packet headers and timing. A way to make it
-  read packet contents, or delay, drop or change game traffic, is a
-  vulnerability.
+  read packet contents, or delay, drop or change game traffic (other than the
+  region picker rules you chose), is a vulnerability.
 - **Network traffic.** efsp makes no requests of its own: no updates,
   telemetry or online lookups. The only packets it sends are pings to the
   current match server (or the last router before it), at most 5 a second. A

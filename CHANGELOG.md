@@ -35,12 +35,14 @@ First release.
   first start.
 - The installer isn't signed yet, so Windows SmartScreen may say "Windows
   protected your PC": choose **More info → Run anyway**.
-- efsp only measures. It never touches the game or changes game traffic, and
-  never shows or saves an opponent's address. It makes no requests of its own:
+- efsp only measures. Apart from the region picker's firewall rules, it never
+  touches the game or changes game traffic, and never shows or saves an
+  opponent's address. It makes no requests of its own:
   the only packets it sends are pings to the match server, at most 5 a second.
 - The region picker isn't endorsed by Konami and may make matchmaking slower.
-  Its rules stay on when efsp is closed or uninstalled, until you turn the
-  cities back on.
+  Its rules stay on when efsp is closed or uninstalled, until you switch the
+  cities back on in efsp and Apply, or delete the `efsp: region picker` rules
+  in Windows Defender Firewall.
   Peer-to-peer matches start through a game server, so switching off nearby
   cities may affect them too.
 - IP geolocation by DB-IP (db-ip.com), CC BY 4.0.

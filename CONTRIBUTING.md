@@ -98,7 +98,7 @@ Clear it afterwards (`Remove-Item Env:EFSP_REPLAY`), or every later run in that
 window replays instead of capturing.
 
 A plain dev build has no IP databases (only cloud servers get a city) and no
-region-picker helper (the Servers page says the picker isn't available). To
+region-picker helper (the Servers page shows no on/off switches). To
 include both, as the installer does:
 
 ```powershell
