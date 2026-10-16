@@ -90,6 +90,8 @@ pub struct Snapshot {
     pub source: SourceKind,
     pub game: GameStatus,
     pub game_ports: usize,
+    /// Every flow the game has open, for the connections table. Empty in
+    /// release builds, which don't show it.
     pub flows: Vec<FlowView>,
     /// Always `None` in release builds (no recorder).
     pub recording: Option<Recording>,
@@ -512,24 +514,28 @@ impl Pipeline {
         {
             self.save_pending();
         }
-        let flows = self.tracker.snapshot(now_us);
-        // The session ends when its connection goes idle or disappears.
-        if self
+        self.tracker.tick(now_us);
+        let status = self
             .session
             .as_ref()
-            .is_some_and(|s| !flows.iter().any(|f| f.id == s.flow_id() && !f.idle))
-        {
+            .and_then(|s| self.tracker.status(s.flow_id(), now_us));
+        // The session ends when its connection goes idle or disappears.
+        if self.session.is_some() && !status.is_some_and(|f| !f.idle) {
             self.end_session(now_us);
         }
         if let Some(session) = &mut self.session {
-            if flows
-                .iter()
-                .any(|f| f.id == session.flow_id() && f.sustained)
-            {
+            if status.is_some_and(|f| f.sustained) {
                 session.mark_sustained();
             }
             session.tick(now_us);
         }
+        // Only developer builds show the connections table, so release
+        // builds don't build or send it.
+        let flows = if DEV_TOOLS {
+            self.tracker.views(now_us)
+        } else {
+            Vec::new()
+        };
         Snapshot {
             source,
             game,

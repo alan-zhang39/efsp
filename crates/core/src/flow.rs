@@ -66,6 +66,15 @@ struct Flow {
     last_ttl_in: Option<u8>,
 }
 
+/// One flow's state, for following the match being measured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlowStatus {
+    /// No packets for [`IDLE_AFTER_US`].
+    pub idle: bool,
+    /// Match-level traffic (see `match_like`).
+    pub sustained: bool,
+}
+
 /// The connection to measure: the newest UDP flow with match-level traffic.
 /// Holds the remote address for probing; it stays in Rust and its `Debug`
 /// is redacted.
@@ -242,8 +251,10 @@ impl FlowTracker {
             })
     }
 
-    /// Drops expired flows and returns the rest, newest first.
-    pub fn snapshot(&mut self, now_us: u64) -> Vec<FlowView> {
+    /// Periodic upkeep: drops expired flows, forgets addresses no flow uses
+    /// any more, classifies new remotes and trims old packet times. Cheap;
+    /// call it on every snapshot, whether or not anyone wants the flow list.
+    pub fn tick(&mut self, now_us: u64) {
         self.flows
             .retain(|_, f| now_us.saturating_sub(f.last_seen_us) < EXPIRE_AFTER_US);
         // Forget addresses no flow uses any more (addresses stay in memory
@@ -260,18 +271,35 @@ impl FlowTracker {
                 .entry(ip)
                 .or_insert_with(|| classify(ip, geo.as_ref()));
         }
-        let endpoints = &self.endpoints;
+        // Keep enough history for the TCP rule; the rate is the last second.
+        let keep_from = now_us.saturating_sub(TCP_MIN_AGE_US);
+        for f in self.flows.values_mut() {
+            while f.recent.front().is_some_and(|(t, _)| *t < keep_from) {
+                f.recent.pop_front();
+            }
+        }
+    }
 
+    /// Whether one flow is idle or sustained right now; `None` once it has
+    /// expired. What the monitor needs to follow the match it measures.
+    pub fn status(&self, flow_id: u32, now_us: u64) -> Option<FlowStatus> {
+        self.flows
+            .iter()
+            .find(|(_, f)| f.id == flow_id)
+            .map(|(key, f)| FlowStatus {
+                idle: now_us.saturating_sub(f.last_seen_us) >= IDLE_AFTER_US,
+                sustained: match_like(key, f, now_us, true),
+            })
+    }
+
+    /// Every flow as the UI's connections table sees it, newest first.
+    /// Only developer builds show that table; call [`Self::tick`] first.
+    pub fn views(&self, now_us: u64) -> Vec<FlowView> {
         let window_start = now_us.saturating_sub(RATE_WINDOW_US);
         let mut views: Vec<FlowView> = self
             .flows
-            .iter_mut()
+            .iter()
             .map(|(key, f)| {
-                // Keep enough history for the TCP rule; the rate is the last second.
-                let keep_from = now_us.saturating_sub(TCP_MIN_AGE_US);
-                while f.recent.front().is_some_and(|(t, _)| *t < keep_from) {
-                    f.recent.pop_front();
-                }
                 let rate = f.recent.iter().filter(|(t, _)| *t >= window_start).count() as u32;
                 let age_us = now_us.saturating_sub(f.first_seen_us);
                 let idle_us = now_us.saturating_sub(f.last_seen_us);
@@ -290,17 +318,25 @@ impl FlowTracker {
                     rate_pps: rate,
                     sustained: match_like(key, f, now_us, true),
                     idle: idle_us >= IDLE_AFTER_US,
-                    endpoint: endpoints.get(&key.remote.get().ip()).cloned().unwrap_or(
-                        Endpoint::Unknown {
+                    endpoint: self
+                        .endpoints
+                        .get(&key.remote.get().ip())
+                        .cloned()
+                        .unwrap_or(Endpoint::Unknown {
                             network: None,
                             country: None,
-                        },
-                    ),
+                        }),
                 }
             })
             .collect();
         views.sort_by_key(|v| Reverse(v.id));
         views
+    }
+
+    /// [`Self::tick`] then [`Self::views`].
+    pub fn snapshot(&mut self, now_us: u64) -> Vec<FlowView> {
+        self.tick(now_us);
+        self.views(now_us)
     }
 }
 
@@ -400,6 +436,24 @@ mod tests {
         assert_eq!(v.len(), 3);
         let labels: Vec<u32> = v.iter().map(|f| f.remote_label).collect();
         assert_eq!(labels, [2, 1, 1], "newest first; same IP keeps its label");
+    }
+
+    #[test]
+    fn status_follows_the_flow_until_it_expires() {
+        let mut t = FlowTracker::new();
+        steady(&mut t, "203.0.113.7:6000", 0, 2, 30);
+        t.tick(2 * SEC);
+        let id = t.views(2 * SEC)[0].id;
+        let busy = FlowStatus {
+            idle: false,
+            sustained: true,
+        };
+        assert_eq!(t.status(id, 2 * SEC), Some(busy));
+        let quiet = t.status(id, 2 * SEC + IDLE_AFTER_US).unwrap();
+        assert!(quiet.idle && !quiet.sustained);
+        t.tick(2 * SEC + EXPIRE_AFTER_US);
+        assert_eq!(t.status(id, 2 * SEC + EXPIRE_AFTER_US), None);
+        assert!(t.views(2 * SEC + EXPIRE_AFTER_US).is_empty());
     }
 
     #[test]
