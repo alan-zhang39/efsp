@@ -13,7 +13,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A new push to a pull request replaces its old run. Every push to main
+  # finishes, so each commit there gets a result (and an installer).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
