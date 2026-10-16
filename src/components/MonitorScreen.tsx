@@ -9,8 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip } from "@/components/ui/tooltip";
 import { endpointKey, endpointLabel } from "../lib/endpoint";
 import { formatAge, formatCount, formatMs } from "../lib/format";
 import {
@@ -27,9 +25,7 @@ import {
   type Snapshot,
 } from "../lib/monitor";
 import type { NpcapStatus } from "../lib/npcap";
-import { useSettings } from "../lib/SettingsContext";
 import { useMonitor } from "../lib/useMonitor";
-import { CardLayoutIcon, FocusLayoutIcon } from "./icons";
 import { MatchCard } from "./MatchCard";
 import { NearestServers } from "./NearestServers";
 import { Empty, InlineError, Page } from "./Page";
@@ -360,34 +356,6 @@ function useMatchAnnouncement(live: Snapshot["measurement"]): string {
   return said?.text ?? "";
 }
 
-/** L1 (details beside the ping) or L2 (one big centred ping), remembered. */
-function LayoutToggle() {
-  const { settings, update } = useSettings();
-  const options = [
-    { value: "card", label: "Details beside the ping", icon: <CardLayoutIcon /> },
-    { value: "focus", label: "Big centred ping", icon: <FocusLayoutIcon /> },
-  ] as const;
-  return (
-    <div className="-mb-2 flex justify-end">
-      <ToggleGroup
-        label="Card layout"
-        value={settings.liveLayout}
-        onValueChange={(liveLayout) => {
-          void update({ ...settings, liveLayout });
-        }}
-      >
-        {options.map((o) => (
-          <Tooltip key={o.value} label={o.label}>
-            <ToggleGroupItem icon value={o.value} aria-label={o.label}>
-              {o.icon}
-            </ToggleGroupItem>
-          </Tooltip>
-        ))}
-      </ToggleGroup>
-    </div>
-  );
-}
-
 export function MonitorScreen({
   npcap,
   onOpenServers,
@@ -395,7 +363,6 @@ export function MonitorScreen({
   npcap: NpcapStatus;
   onOpenServers?: () => void;
 }) {
-  const { settings } = useSettings();
   const { snapshot, error } = useMonitor();
   const announcement = useMatchAnnouncement(snapshot?.measurement ?? null);
   const headline = describe(snapshot, error);
@@ -434,10 +401,7 @@ export function MonitorScreen({
             status (like every other status) before and after one. The last
             match is in History. */}
         {live !== null && snapshot !== null ? (
-          <>
-            <LayoutToggle />
-            <MatchCard m={live} mode="live" layout={settings.liveLayout} />
-          </>
+          <MatchCard m={live} mode="live" />
         ) : (
           <div aria-live="polite">
             <Status

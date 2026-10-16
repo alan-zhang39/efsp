@@ -82,26 +82,6 @@ export function CardsIcon() {
   );
 }
 
-/** Live card layout L1: the ping with details beside it. */
-export function CardLayoutIcon() {
-  return (
-    <svg {...base}>
-      <path d="M3 6h7M3 10h5M3 14h7" />
-      <rect x="12" y="5" width="5" height="10" rx="1.5" />
-    </svg>
-  );
-}
-
-/** Live card layout L2: one big centred ping. */
-export function FocusLayoutIcon() {
-  return (
-    <svg {...base}>
-      <path d="M6 9h8M7.5 12.5h5" />
-      <rect x="2.5" y="3.5" width="15" height="13" rx="2" />
-    </svg>
-  );
-}
-
 /** Two arrows chasing round: refresh. */
 export function RefreshIcon() {
   return (

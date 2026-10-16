@@ -131,6 +131,10 @@ describe("Shell", () => {
     expect(screen.getByText("1–2 of 2")).toBeVisible();
     expect(within(table).getAllByRole("row")).toHaveLength(3); // header + 2
     expect(within(table).getByText("Offer")).toBeVisible();
+    // Offers always last a few seconds: their length is a dash, a match's is shown.
+    expect(within(table).getByText("Offer").closest("tr")).toHaveTextContent("—");
+    expect(within(table).queryByText("9 s")).not.toBeInTheDocument();
+    expect(within(table).getByText("10 min")).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Cards" }));
     await vi.waitFor(() => {

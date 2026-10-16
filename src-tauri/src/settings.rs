@@ -17,16 +17,6 @@ pub enum Theme {
     System,
 }
 
-/// The Live page's card: ping on the left with details (L1), or one big
-/// centred ping (L2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub enum LiveLayout {
-    #[default]
-    Card,
-    Focus,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum HistoryView {
@@ -76,7 +66,6 @@ pub struct Settings {
     pub history_view: HistoryView,
     /// Rows or cards on the Servers page.
     pub servers_view: HistoryView,
-    pub live_layout: LiveLayout,
     pub keep_history_days: Option<u32>,
 }
 

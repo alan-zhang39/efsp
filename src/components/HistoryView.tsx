@@ -48,6 +48,15 @@ const KINDS = [
   { value: "peer", label: "Peers only" },
 ] as const;
 
+/**
+ * A match's length. Offers (declined or timed out) always last a few
+ * seconds, so their length says nothing: a dash. It's still stored and
+ * exported.
+ */
+function lengthText(r: MatchRecord): string {
+  return r.kind === "offer" ? "—" : formatDuration(r.durationMs);
+}
+
 const SORTS: Record<string, HistorySort> = { when: "when", ping: "ping", length: "length" };
 
 /** Where a record was; "—" for records without a location. */
@@ -127,7 +136,7 @@ const COLUMNS = [
     id: "length",
     header: "Length",
     sortDescFirst: true,
-    cell: (c) => formatDuration(c.getValue()),
+    cell: (c) => lengthText(c.row.original),
     meta: {
       numeric: true,
       // Hidden in a narrow window, as before.
@@ -167,7 +176,8 @@ function Cards({ records, open }: { records: MatchRecord[]; open: (id: number) =
             </span>
             <Sparkline values={r.spark} />
             <span className="text-[0.8125rem] text-muted-foreground">
-              {serverText(r)} · {formatDuration(r.durationMs)}
+              {serverText(r)}
+              {r.kind === "match" && ` · ${formatDuration(r.durationMs)}`}
             </span>
           </button>
         </li>
@@ -242,7 +252,8 @@ function Detail({ id, back }: { id: number; back: () => void }) {
                 <Tags r={data.record} />
               </p>
               <p className="m-0 text-sm text-muted-foreground">
-                {formatTime(data.record.startedAt)} · {formatDuration(data.record.durationMs)}
+                {formatTime(data.record.startedAt)}
+                {data.record.kind === "match" && ` · ${formatDuration(data.record.durationMs)}`}
               </p>
             </div>
           }

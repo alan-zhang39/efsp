@@ -12,8 +12,6 @@ export interface Show {
 
 export type Theme = "dark" | "light" | "system";
 export type HistoryView = "rows" | "cards";
-/** The Live card: details beside the ping (card) or one big centred ping (focus). */
-export type LiveLayout = "card" | "focus";
 
 export interface Settings {
   theme: Theme;
@@ -23,7 +21,6 @@ export interface Settings {
   historyView: HistoryView;
   /** Rows or cards on the Servers page. */
   serversView: HistoryView;
-  liveLayout: LiveLayout;
   /** null = keep forever. */
   keepHistoryDays: number | null;
 }
@@ -44,7 +41,6 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   historyView: "rows",
   serversView: "rows",
-  liveLayout: "card",
   keepHistoryDays: null,
 };
 
@@ -81,7 +77,6 @@ export function parseSettings(v: unknown): Settings {
     },
     historyView: v.historyView === "cards" ? "cards" : "rows",
     serversView: v.serversView === "cards" ? "cards" : "rows",
-    liveLayout: v.liveLayout === "focus" ? "focus" : "card",
     keepHistoryDays:
       typeof keep === "number" && KEEP_DAYS_OPTIONS.includes(keep) ? keep : d.keepHistoryDays,
   };

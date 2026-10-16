@@ -277,19 +277,6 @@ describe("MonitorScreen", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Canada (peer)" })).toBeVisible();
   });
 
-  it("switches between the two card layouts and remembers it", async () => {
-    const ping = { lastMs: 33, medianMs: 24.4, p95Ms: 31, jitterMs: 1, lossPct: 0, probes: 50 };
-    await renderWith(measured({ bars: 5, ping }));
-    const card = screen.getByRole("region", { name: "Match connection" });
-    expect(card).toHaveAttribute("data-layout", "card");
-    await userEvent.click(screen.getByRole("button", { name: "Big centred ping" }));
-    await vi.waitFor(() => {
-      const saved = invoke.mock.calls.find(([cmd]) => cmd === "settings_set")?.[1] as
-        { settings: { liveLayout: string } } | undefined;
-      expect(saved?.settings.liveLayout).toBe("focus");
-    });
-  });
-
   it("labels each connection's location in the dev list, and the game's pings by region", async () => {
     await renderWith(
       snap({
@@ -346,7 +333,6 @@ describe("MonitorScreen", () => {
     expect(screen.getByRole("heading", { name: "Waiting for a match" })).toBeVisible();
     expect(screen.queryByRole("region", { name: "Match" })).not.toBeInTheDocument();
     expect(screen.queryByText("44 ms")).not.toBeInTheDocument();
-    expect(screen.queryByRole("radiogroup", { name: "Card layout" })).not.toBeInTheDocument();
   });
 
   it("colours by bars but always shows the number and bar count", async () => {
