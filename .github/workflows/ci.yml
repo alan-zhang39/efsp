@@ -17,6 +17,29 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  ui:
+    name: UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint and format check
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
   rust:
     name: Rust (Linux)
     runs-on: ubuntu-latest
