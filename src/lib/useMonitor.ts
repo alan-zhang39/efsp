@@ -10,6 +10,8 @@ export function useMonitor(): { snapshot: Snapshot | null; error: string | null 
     let stop: (() => void) | null = null;
     let cancelled = false;
     const onSnapshot = (s: Snapshot) => {
+      // A good snapshot after a bad one: the problem is over.
+      setError(null);
       setSnapshot(s);
       publishSnapshot(s);
     };

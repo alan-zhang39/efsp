@@ -224,8 +224,8 @@ function Cards({ regions, toggle }: { regions: Region[]; toggle: PickerSwitches 
 
 /**
  * The region picker's controls: Apply when something changed, and
- * Find eFootball.exe when Steam doesn't know where it is. "Turn back on"
- * lives in the sidebar.
+ * Find eFootball.exe when Steam doesn't know where it is. Turning every
+ * city back on is the "All servers" switch, then Apply.
  */
 function PickerPanel({
   status,

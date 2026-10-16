@@ -374,7 +374,9 @@ export function MonitorScreen({
         : null;
   const driver =
     npcap.state === "found" && npcap.version !== null ? `Npcap ${npcap.version}` : null;
-  const live = snapshot?.measurement ?? null;
+  // While snapshots fail to read, the last good one is stale: show the
+  // error, not a frozen card.
+  const live = error === null ? (snapshot?.measurement ?? null) : null;
 
   return (
     <Page className="grid-rows-[auto_1fr_auto]">
@@ -403,15 +405,19 @@ export function MonitorScreen({
         {live !== null && snapshot !== null ? (
           <MatchCard m={live} mode="live" />
         ) : (
-          <div aria-live="polite">
-            <Status
-              key={headline.heading}
-              tone={headline.tone}
-              mark={headline.mark}
-              label={headline.label}
-              heading={headline.heading}
-              body={headline.body}
-            />
+          <div>
+            {/* Only the status is announced; the nearest servers' pings
+                change with every snapshot. */}
+            <div aria-live="polite">
+              <Status
+                key={headline.heading}
+                tone={headline.tone}
+                mark={headline.mark}
+                label={headline.label}
+                heading={headline.heading}
+                body={headline.body}
+              />
+            </div>
             {snapshot?.game === "running" && snapshot.source === "live" && (
               <NearestServers
                 regions={snapshot.gamePings?.regions ?? []}

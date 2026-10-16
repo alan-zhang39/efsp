@@ -444,4 +444,26 @@ describe("MonitorScreen", () => {
     await renderWith({ nonsense: true } as unknown as Snapshot);
     expect(screen.getByRole("heading", { name: "Live capture isn't running" })).toBeVisible();
   });
+
+  it("recovers when a good snapshot follows a malformed one", async () => {
+    await renderWith({ nonsense: true } as unknown as Snapshot);
+    expect(screen.getByRole("heading", { name: "Live capture isn't running" })).toBeVisible();
+    const ping = { lastMs: 33, medianMs: 24.4, p95Ms: 31, jitterMs: 1, lossPct: 0, probes: 50 };
+    act(() => {
+      lastChannel().onmessage(measured({ bars: 5, ping }));
+    });
+    expect(screen.getByRole("region", { name: "Match connection" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Live capture isn't running" })).toBeNull();
+  });
+
+  it("drops a frozen match card when snapshots stop reading", async () => {
+    const ping = { lastMs: 33, medianMs: 24.4, p95Ms: 31, jitterMs: 1, lossPct: 0, probes: 50 };
+    await renderWith(measured({ bars: 5, ping }));
+    expect(screen.getByRole("region", { name: "Match connection" })).toBeVisible();
+    act(() => {
+      lastChannel().onmessage({ nonsense: true });
+    });
+    expect(screen.queryByRole("region", { name: "Match connection" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Live capture isn't running" })).toBeVisible();
+  });
 });
