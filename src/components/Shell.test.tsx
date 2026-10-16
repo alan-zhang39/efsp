@@ -553,6 +553,91 @@ describe("Shell", () => {
     expect(calls.filter((c) => c.cmd === "picker_apply").at(-1)?.args).toEqual({ off: [] });
   });
 
+  it("offers Apply when rules are on but efsp lost track of their cities", async () => {
+    const calls: { cmd: string; args?: unknown }[] = [];
+    invoke.mockImplementation((cmd, args) => {
+      calls.push({ cmd, args });
+      switch (cmd) {
+        case "settings_get":
+          return Promise.resolve(saved);
+        case "picker_status":
+          return Promise.resolve({
+            off: [],
+            rulesOn: true,
+            gameExe: "C:\\G\\eFootball.exe",
+            available: true,
+            matchActive: false,
+          });
+        case "picker_apply":
+          return Promise.resolve({
+            off: [],
+            rulesOn: false,
+            gameExe: "C:\\G\\eFootball.exe",
+            available: true,
+            matchActive: false,
+          });
+        default:
+          return Promise.resolve(undefined);
+      }
+    });
+    renderShell();
+    // The game isn't running: no servers listed, but Apply is still there.
+    await userEvent.click(screen.getByRole("button", { name: "Servers" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(calls.find((c) => c.cmd === "picker_apply")?.args).toEqual({ off: [] });
+    });
+  });
+
+  it("has the all-servers switch in cards view too", async () => {
+    saved = { ...saved, serversView: "cards" };
+    invoke.mockImplementation((cmd) => {
+      switch (cmd) {
+        case "settings_get":
+          return Promise.resolve(saved);
+        case "picker_status":
+          return Promise.resolve({
+            off: [],
+            rulesOn: false,
+            gameExe: "C:\\G\\eFootball.exe",
+            available: true,
+            matchActive: false,
+          });
+        default:
+          return Promise.resolve(undefined);
+      }
+    });
+    renderShell();
+    await vi.waitFor(() => {
+      expect(() => lastChannel()).not.toThrow();
+    });
+    act(() => {
+      lastChannel().onmessage({
+        source: "live",
+        game: "running",
+        gamePorts: 2,
+        flows: [],
+        recording: null,
+        measurement: null,
+        lastMatch: null,
+        saved: 0,
+        gamePings: {
+          servers: 1,
+          samples: 10,
+          nearestMs: 19,
+          typicalMs: 19,
+          regions: [{ endpoint: frankfurt, servers: 1, bestMs: 19, bars: 5 }],
+        },
+        devTools: false,
+        error: null,
+      });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Servers" }));
+    expect(screen.queryByRole("table", { name: "Servers" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "All servers" }));
+    expect(screen.getByRole("switch", { name: "Allow matches in Frankfurt" })).not.toBeChecked();
+  });
+
   it("refuses to change rules during a match", async () => {
     invoke.mockImplementation((cmd) => {
       switch (cmd) {

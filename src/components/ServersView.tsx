@@ -205,20 +205,29 @@ const COLUMNS = [
 
 function Cards({ regions, toggle }: { regions: Region[]; toggle: PickerSwitches | null }) {
   return (
-    <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3 p-0">
-      {regions.map((r) => (
-        <li key={r.key} className="grid gap-1 rounded-[0.625rem] border border-line p-4">
-          <span className="flex items-center justify-between gap-2">
-            <NameCell r={r} toggle={toggle} />
-            {toggle !== null && <OnSwitch r={r} toggle={toggle} />}
-          </span>
-          <PingCell
-            r={r}
-            className="mt-2 text-[1.75rem] leading-none font-[650] tracking-[-0.02em]"
-          />
-        </li>
-      ))}
-    </ul>
+    <div className="grid gap-3">
+      {/* The table has this switch in its header; cards need their own. */}
+      {toggle !== null && (
+        <label className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+          All servers
+          <Switch aria-label="All servers" checked={toggle.allOn} onCheckedChange={toggle.setAll} />
+        </label>
+      )}
+      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3 p-0">
+        {regions.map((r) => (
+          <li key={r.key} className="grid gap-1 rounded-[0.625rem] border border-line p-4">
+            <span className="flex items-center justify-between gap-2">
+              <NameCell r={r} toggle={toggle} />
+              {toggle !== null && <OnSwitch r={r} toggle={toggle} />}
+            </span>
+            <PingCell
+              r={r}
+              className="mt-2 text-[1.75rem] leading-none font-[650] tracking-[-0.02em]"
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -263,7 +272,11 @@ function PickerPanel({
   // Steam's records nearly always find the game; ask only when they didn't
   // and the player is actually switching cities off.
   const findExe = status.gameExe === null && dirty;
-  if (!status.available || (!dirty && !findExe && message === null)) return null;
+  // efsp's rules are in the firewall but it has lost track of which cities
+  // they block (its saved list was deleted or couldn't be written). Every
+  // switch already reads "on", so offer Apply directly: it removes them.
+  const orphan = status.rulesOn && status.off.length === 0 && !dirty;
+  if (!status.available || (!dirty && !findExe && !orphan && message === null)) return null;
   return (
     <div className="grid justify-items-end gap-2">
       <div className="flex flex-wrap gap-2">
@@ -283,7 +296,7 @@ function PickerPanel({
             Reset
           </Button>
         )}
-        {dirty && (
+        {(dirty || orphan) && (
           <Button
             disabled={busy || blocked !== null}
             onClick={() => {
@@ -294,6 +307,12 @@ function PickerPanel({
           </Button>
         )}
       </div>
+      {orphan && (
+        <Hint>
+          efsp&apos;s firewall rules are on, but it lost track of which cities they block. Apply
+          removes them.
+        </Hint>
+      )}
       {dirty && blocked !== null && <Hint>{blocked}</Hint>}
       {message !== null && <InlineError>{message}</InlineError>}
     </div>

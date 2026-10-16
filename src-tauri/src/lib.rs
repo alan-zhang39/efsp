@@ -208,7 +208,7 @@ async fn picker_apply(
              game servers there. Login and the store aren't affected. Peer-to-peer matches \
              start through one of the game's servers, so they may be affected too.\n\n\
              Experimental and not endorsed by Konami: matchmaking may take longer or fail. \
-             Turn servers back on any time from the sidebar or the Servers page.",
+             To undo, switch every server back on in the Servers page and Apply (that works any time).",
             names.join(", ")
         );
         if usual_off && let Some(u) = &usual {
