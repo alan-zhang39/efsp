@@ -9,6 +9,10 @@ updates:
       # it supports TypeScript 7.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
+      # Version 9 rewrote the API (no useReactTable / getCoreRowModel);
+      # migrating DataTable, History and Servers is its own piece of work.
+      - dependency-name: "@tanstack/react-table"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor:
         update-types: [minor, patch]
