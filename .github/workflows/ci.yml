@@ -58,25 +58,38 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
+      # The app crate (efsp) needs Windows' WebView2 to build; it's checked
+      # in the Windows job. Everything else builds and tests here.
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --exclude efsp --all-targets --locked -- -D warnings
 
       # Dev builds add experiment code behind the `dev-tools` feature.
       - name: Clippy (dev-tools)
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+        run: cargo clippy --workspace --exclude efsp --all-targets --all-features --locked -- -D warnings
 
       - name: Test
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --exclude efsp --locked
 
       - name: Test (dev-tools)
-        run: cargo test --workspace --all-features --locked
+        run: cargo test --workspace --exclude efsp --all-features --locked
 
-  # Windows-only code (the helper's registry and netsh calls) only compiles here.
+  # The app crate and all Windows-only code (registry, netsh, Npcap) compile here.
   rust-windows:
     name: Rust (Windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      # Tauri embeds the built UI, so the app crate needs dist/ to compile.
+      - name: Build UI
+        run: |
+          npm ci
+          npm run build
 
       - uses: dtolnay/rust-toolchain@stable
         with:

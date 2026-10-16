@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-npcap-status"
+description = "Enables the npcap_status command without any pre-configured scope."
+commands.allow = ["npcap_status"]
+
+[[permission]]
+identifier = "deny-npcap-status"
+description = "Denies the npcap_status command without any pre-configured scope."
+commands.deny = ["npcap_status"]

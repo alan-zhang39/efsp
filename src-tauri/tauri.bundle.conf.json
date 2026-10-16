@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/ipdb/dbip-country-lite.mmdb": "ipdb/dbip-country-lite.mmdb",
+      "resources/ipdb/dbip-asn-lite.mmdb": "ipdb/dbip-asn-lite.mmdb",
+      "resources/ipdb/SOURCE.txt": "ipdb/SOURCE.txt"
+    },
+    "externalBin": ["binaries/efsp-helper"]
+  }
+}
