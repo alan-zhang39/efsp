@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # A version tag (v1.0.0, …) also publishes a draft GitHub Release.
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -75,8 +77,11 @@ jobs:
 
   # The app crate and all Windows-only code (registry, netsh, Npcap) compile here.
   rust-windows:
-    name: Rust (Windows)
+    name: Rust and installer (Windows)
     runs-on: windows-latest
+    permissions:
+      # Only used by the release step, which runs on version tags.
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -121,3 +126,73 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --all-features --locked
+
+      # DB-IP Lite country/ASN databases, bundled into the installer for
+      # offline location labels. Not committed. Cached per month so a
+      # db-ip.com outage only matters on a month's first run; the downloaded
+      # month and SHA-256 are printed and kept in SOURCE.txt.
+      - name: Month key for the IP databases
+        id: ipdb-month
+        shell: bash
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - name: Cache IP location databases
+        id: ipdb-cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/ipdb
+          key: dbip-lite-${{ steps.ipdb-month.outputs.month }}
+      - name: Download IP location databases
+        if: steps.ipdb-cache.outputs.cache-hit != 'true'
+        run: node scripts/update-ip-data.mjs --geo
+      - name: IP database versions
+        shell: bash
+        run: cat src-tauri/resources/ipdb/SOURCE.txt
+
+      # The region-picker helper ships next to efsp.exe (Tauri externalBin
+      # wants the target triple in the file name).
+      - name: Build region-picker helper
+        shell: bash
+        run: |
+          cargo build --release --locked -p efsp-helper
+          mkdir -p src-tauri/binaries
+          cp target/release/efsp-helper.exe src-tauri/binaries/efsp-helper-x86_64-pc-windows-msvc.exe
+
+      # tauri.bundle.conf.json adds the IP databases and the helper to the
+      # bundle (kept out of the base config so checks build without them).
+      # Release features only: developer tools are for local builds.
+      - name: Build installer (unsigned)
+        run: npm run tauri build -- --config "${{ github.workspace }}/src-tauri/tauri.bundle.conf.json"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: efsp-windows-installer
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      # Tags only: a draft release with the installer, to check and publish
+      # by hand.
+      - name: Draft GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" target/release/bundle/nsis/*.exe \
+            --draft --title "efsp $GITHUB_REF_NAME" --notes-file CHANGELOG.md
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: npm audit
+        run: npm audit --audit-level=high
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        run: cargo audit
