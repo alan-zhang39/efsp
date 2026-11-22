@@ -39,7 +39,7 @@ that break them won't be merged.
 You need:
 
 - [Node.js](https://nodejs.org) (LTS)
-- [Rust](https://rustup.rs), stable, 1.88 or newer
+- [Rust](https://rustup.rs), stable, 1.89 or newer
 - Tauri's system prerequisites for your OS:
   [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/)
   (on Windows: Microsoft C++ Build Tools and WebView2; on macOS: Xcode's
