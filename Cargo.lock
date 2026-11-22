@@ -968,7 +968,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "efsp"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "efsp-core",
  "maxminddb",
@@ -991,7 +991,7 @@ dependencies = [
 
 [[package]]
 name = "efsp-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "etherparse",
  "serde",
@@ -1001,7 +1001,7 @@ dependencies = [
 
 [[package]]
 name = "efsp-helper"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "efsp-core",
  "serde",

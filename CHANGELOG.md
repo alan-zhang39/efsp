@@ -4,6 +4,20 @@ All notable changes to efsp are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-11-22
+
+### Fixed
+
+- The Servers page could freeze after a click: its city list re-rendered in
+  an endless loop.
+
+### Security
+
+- Updated the bundled SQLite library (CVE fix, RUSTSEC-2026-0459) and the
+  `url` library (RUSTSEC-2026-0592).
+- Updated development dependencies flagged by npm audit (undici, minimatch)
+  and other routine dependency updates.
+
 ## [1.0.0]
 
 First release.
@@ -47,4 +61,5 @@ First release.
   cities may affect them too.
 - IP geolocation by DB-IP (db-ip.com), CC BY 4.0.
 
+[1.0.1]: https://github.com/alan-zhang39/efsp/releases/tag/v1.0.1
 [1.0.0]: https://github.com/alan-zhang39/efsp/releases/tag/v1.0.0
