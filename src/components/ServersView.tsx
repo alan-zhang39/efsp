@@ -358,7 +358,7 @@ export function ServersView() {
   const live = useMemo(() => pinned ?? [], [pinned]);
   const appliedOff = useMemo(() => picker?.off ?? [], [picker]);
   const regions = useMemo(() => mergeRegions(live, appliedOff, known), [live, appliedOff, known]);
-  const appliedKeys = new Set(appliedOff.map((a) => a.key));
+  const appliedKeys = useMemo(() => new Set(appliedOff.map((a) => a.key)), [appliedOff]);
   const offKeys = draft ?? appliedKeys;
   const dirty =
     draft !== null &&
@@ -413,19 +413,29 @@ export function ServersView() {
   const continentNow = continent !== "all" && continents.includes(continent) ? continent : "all";
   const query = search.trim().toLowerCase();
   // Switched-off cities always stay in view, so they can be turned back on.
-  const shown = regions.filter(
-    (r) =>
-      offKeys.has(r.key) ||
-      ((query === "" || r.name.toLowerCase().includes(query)) &&
-        (continentNow === "all" || r.continent === continentNow) &&
-        (minBars === null || (r.bars !== null && r.bars >= minBars)) &&
-        (maxMs === null || (r.pingMs !== null && r.pingMs <= maxMs))),
+  const shown = useMemo(
+    () =>
+      regions.filter(
+        (r) =>
+          offKeys.has(r.key) ||
+          ((query === "" || r.name.toLowerCase().includes(query)) &&
+            (continentNow === "all" || r.continent === continentNow) &&
+            (minBars === null || (r.bars !== null && r.bars >= minBars)) &&
+            (maxMs === null || (r.pingMs !== null && r.pingMs <= maxMs))),
+      ),
+    [regions, offKeys, query, continentNow, minBars, maxMs],
+  );
+  // The table's rows must keep their identity between renders: TanStack
+  // treats a new array as new data.
+  const rows = useMemo(
+    () => sortRegions(shown, sorting[0] ?? { id: "ping", desc: false }),
+    [shown, sorting],
   );
   // TanStack Table returns a mutable object, which the React-compiler lint
   // rule flags; efsp doesn't use the compiler, so this only quiets the rule.
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data: sortRegions(shown, sorting[0] ?? { id: "ping", desc: false }),
+    data: rows,
     columns: COLUMNS,
     state: { sorting, columnVisibility: { on: toggle !== null } },
     meta: { serverToggle: toggle },
@@ -438,6 +448,10 @@ export function ServersView() {
     enableMultiSort: false,
     // Low ping and A–Z first.
     sortDescFirst: false,
+    // No pages here. Left on, TanStack "resets to page 1" whenever the data
+    // changes, and that reset re-renders the page: with rows rebuilt on
+    // every render, the page re-rendered in an endless loop and froze.
+    autoResetPageIndex: false,
   });
   const sorted = table.getRowModel().rows.map((row) => row.original);
 

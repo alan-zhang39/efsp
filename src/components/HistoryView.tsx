@@ -336,6 +336,8 @@ export function HistoryView() {
     getCoreRowModel: getCoreRowModel(),
     getRowId: (r) => String(r.id),
     meta: { openMatch: setOpenId },
+    // Paging is done by the app's query, not the table: no automatic resets.
+    autoResetPageIndex: false,
   });
 
   if (openId !== null) {

@@ -1,5 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Profiler } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsProvider } from "../lib/SettingsContext";
 import { DEFAULT_SETTINGS } from "../lib/settings";
@@ -636,6 +637,65 @@ describe("Shell", () => {
     expect(screen.queryByRole("table", { name: "Servers" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("switch", { name: "All servers" }));
     expect(screen.getByRole("switch", { name: "Allow matches in Frankfurt" })).not.toBeChecked();
+  });
+
+  it("doesn't keep re-rendering the Servers page on its own", async () => {
+    invoke.mockImplementation((cmd) => {
+      switch (cmd) {
+        case "settings_get":
+          return Promise.resolve(saved);
+        case "picker_status":
+          return Promise.resolve({
+            off: [],
+            rulesOn: false,
+            gameExe: "C:\\G\\eFootball.exe",
+            available: true,
+            matchActive: false,
+          });
+        default:
+          return Promise.resolve(undefined);
+      }
+    });
+    let commits = 0;
+    render(
+      <Profiler id="app" onRender={() => (commits += 1)}>
+        <SettingsProvider>
+          <Shell npcap={{ state: "found", version: "1.88" }} />
+        </SettingsProvider>
+      </Profiler>,
+    );
+    await vi.waitFor(() => {
+      expect(() => lastChannel()).not.toThrow();
+    });
+    act(() => {
+      lastChannel().onmessage({
+        source: "live",
+        game: "running",
+        gamePorts: 2,
+        flows: [],
+        recording: null,
+        measurement: null,
+        lastMatch: null,
+        saved: 0,
+        gamePings: {
+          servers: 1,
+          samples: 10,
+          nearestMs: 19,
+          typicalMs: 19,
+          regions: [{ endpoint: frankfurt, servers: 1, bestMs: 19, bars: 5 }],
+        },
+        devTools: false,
+        error: null,
+      });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Servers" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Allow matches in Frankfurt" }));
+    // Nothing changes from here on, so the page should settle and stay still.
+    // A table handed a new row array every render reset itself in a loop.
+    await new Promise((r) => setTimeout(r, 100));
+    const settled = commits;
+    await new Promise((r) => setTimeout(r, 300));
+    expect(commits - settled).toBeLessThanOrEqual(2);
   });
 
   it("refuses to change rules during a match", async () => {
